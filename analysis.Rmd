@@ -1,0 +1,81 @@
+---
+title: "CSGO Matchmaking Damage"
+author: "Jeffrey Limbacher"
+date: "October 25, 2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require(tidyverse)
+require(png)
+require(grid)
+csgo<-read_csv('input/mm_master_demos.csv')
+maps<-read_csv('input/map_data.csv')
+```
+
+I am interested in the effective locations of AWPs. Let's see which maps we can analyze.
+
+```{r echo=TRUE}
+
+csgo %>%
+  group_by(map) %>%
+  filter(wp=="AWP") %>%
+  summarise(n=n()) %>%
+  ggplot() +
+  geom_bar(aes(x=map,y=n),stat="identity") +
+  coord_flip()
+
+```
+
+Get the AWP kills on Inferno and scale the attacker and victim positions so that they are in the picture coordinates.
+
+```{r echo=TRUE}
+
+inferno_info <- maps %>%
+  filter(X1=="de_inferno")
+sx=inferno_info[["StartX"]]
+sy=inferno_info[["StartY"]]
+ex=inferno_info[["EndX"]]
+ey=inferno_info[["EndY"]]
+resx=inferno_info[["ResX"]]
+resy=inferno_info[["ResY"]]
+
+inferno_awps <- csgo %>%
+  filter(map=="de_inferno",wp=="AWP") %>%
+  mutate(att_pos_x=(att_pos_x-sx)/(ex-sx)*resx,
+         att_pos_y=(att_pos_y-sy)/(ey-sy)*resy,
+         vic_pos_x=(vic_pos_x-sx)/(ex-sx)*resx,
+         vic_pos_y=(vic_pos_y-sy)/(ey-sy)*resy)
+
+```
+
+
+```{r echo=TRUE}
+  
+img<-readPNG("./input/de_inferno.png")
+g <- rasterGrob(img, width=unit(1,"npc"), height=unit(1,"npc"), interpolate=TRUE)
+
+inferno_awps %>%
+  ggplot() +
+  annotation_custom(g) +
+  geom_point(aes(x=att_pos_x,y=att_pos_y,colour=att_side),alpha=.2) +
+  scale_colour_manual(values=c("CounterTerrorist"="blue","Terrorist"="brown"))
+
+```
+
+
+Let's check out AWP battles between top mid and T ramp
+
+```{r echo=TRUE}
+awp_battle <- inferno_awps %>%
+  filter( (att_pos_x < 354 & att_pos_x > 274 & att_pos_y < 374 & att_pos_y > 274) |
+            (att_pos_x > 280 & att_pos_x < 480 & att_pos_y > 590 & att_pos_y < 710))
+
+#plot to verify we grabbed the right data
+awp_battle %>%
+  ggplot() +
+  annotation_custom(g) +
+  geom_point(aes(x=att_pos_x,y=att_pos_y,colour=att_side),alpha=.2) +
+  scale_colour_manual(values=c("CounterTerrorist"="blue","Terrorist"="brown"))
+```
